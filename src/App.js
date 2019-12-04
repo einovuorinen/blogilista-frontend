@@ -1,14 +1,43 @@
-import React, {useState, useEffect} from 'react'
+import React, { useState, useEffect } from 'react'
+import  { useField } from './hooks'
 import loginService from './services/login'
 import blogService from './services/blogs'
 import Blog from './components/Blog'
 import BlogForm from './components/BlogForm'
 import Togglable from './components/Togglable'
 
+const ErrorMessage = ({ message }) => {
+  if (message === null) {
+    return null
+  }
+
+  return (
+    <div className="error">
+      {message}
+    </div>
+  )
+}
+
+const Notification = ({ message }) => {
+  if (message === null) {
+    return null
+  }
+
+  return (
+    <div className="notif">
+      {message}
+    </div>
+  )
+}
+
 const App = () => {
   const [blogs, setBlogs] = useState([])
-  const [username, setUsername] = useState('') 
-  const [password, setPassword] = useState('')
+  //const [username, setUsername] = useState('')
+  //const [password, setPassword] = useState('')
+  const usernameField = useField('text')
+  const passwordField = useField('password')
+
+
   const [user, setUser] = useState(null)
   const [errorMessage, setErrorMessage] = useState(null)
   const [notif, setNotification] = useState(null)
@@ -16,11 +45,11 @@ const App = () => {
   const [newTitle, setNewTitle] = useState('')
   const [newAuthor, setNewAuthor] = useState('')
   const [newUrl, setNewUrl] = useState('')
-  
+
   useEffect(() => {
     blogService
       .getAll().then(initialBlogs => {
-        if (initialBlogs.every(x => x)) setBlogs(initialBlogs)
+        setBlogs(initialBlogs)
       })
   }, [])
 
@@ -33,44 +62,22 @@ const App = () => {
     }
   }, [])
 
-  const ErrorMessage = ({ message }) => {
-    if (message === null) {
-      return null
-    }
-
-    return (
-      <div className="error">
-        {message}
-      </div>
-    ) 
-  }
-
-  const Notification = ({ message }) => {
-    if (message === null) {
-      return null
-    }
-
-    return (
-      <div className="notif">
-        {message}
-      </div>
-    ) 
-  }
-
   const handleLogin = async (event) => {
     event.preventDefault()
     try {
+      const username = usernameField.value
+      const password = passwordField.value
       const user = await loginService.login({
         username, password,
       })
 
       window.localStorage.setItem(
         'loggedBlogUser', JSON.stringify(user)
-      ) 
+      )
 
       setUser(user)
-      setUsername('')
-      setPassword('')
+      usernameField.reset()
+      passwordField.reset()      //setPassword('')
     } catch (exception) {
       setErrorMessage('wrong credentials')
       setTimeout(() => {
@@ -83,9 +90,9 @@ const App = () => {
     window.localStorage.removeItem('loggedBlogUser')
     setUser(null)
     setNotification('logged out')
-      setTimeout(() => {
-        setNotification(null)
-      }, 5000)
+    setTimeout(() => {
+      setNotification(null)
+    }, 5000)
   }
 
   const handleTitleChange = (event) => {
@@ -106,7 +113,8 @@ const App = () => {
       title: newTitle,
       author: newAuthor,
       url: newUrl,
-      likes: 0
+      likes: 0,
+      user: user.id
     }
 
     blogService
@@ -117,10 +125,10 @@ const App = () => {
         setNewUrl('')
         setNewTitle('')
       })
-      setNotification('blog was created succesfully')
-      setTimeout(() => {
-        setNotification(null)
-      }, 5000)
+    setNotification('blog was created succesfully')
+    setTimeout(() => {
+      setNotification(null)
+    }, 5000)
   }
 
   const likeBlog = (event, blog) => {
@@ -130,47 +138,47 @@ const App = () => {
       author: blog.author,
       url: blog.url,
       likes: blog.likes + 1,
-      user: blog.user,
+      user: blog.user
     }
 
+    console.log(blogObject.user)
     blogService
       .update(blogObject, blog.id)
       .then(data => {
         setBlogs(blogs.map(b => {
           if (b.id === data.id) {
-            b = data
-          }
+            return data
+          } else return b
         }))
       })
-      console.log('after update:')
-      console.log(blogs)
+  }
+
+  const removeBlog = (event, blog) => {
+    event.preventDefault()
+    if (window.confirm(`remove ${blog.title} by ${blog.author}`)) {
+      blogService
+        .remove(blog.id)
+        .then(setBlogs(blogs.filter(b => b.id !== blog.id)))
+    }
   }
 
   const loginForm = () => (
     <form onSubmit={handleLogin}>
       <div>
         username
-          <input
-          type="text"
-          value={username}
-          name="Username"
-          onChange={({ target }) => setUsername(target.value)}
-        />
+        <input {...usernameField}/>
+        
       </div>
       <div>
         password
-          <input
-          type="password"
-          value={password}
-          name="Password"
-          onChange={({ target }) => setPassword(target.value)}
-        />
+        <input {...passwordField}/>
+        
       </div>
       <button type="submit">login</button>
-    </form>      
+    </form>
   )
 
-  
+
 
   if (user === null) {
     return (
@@ -182,7 +190,7 @@ const App = () => {
       </div>
     )
   }
-
+  console.log(blogs)
   return (
     <div>
       <h2>blogs</h2>
@@ -200,11 +208,11 @@ const App = () => {
           handleUrlChange={handleUrlChange}
         />
       </Togglable>
-      {blogs.map(blog =>
-        <Blog key={blog.id} blog={blog} likeBlog={likeBlog}/>
+      {blogs.sort((a, b) => b.likes - a.likes).map(blog =>
+        <Blog key={blog.id} user={user} blog={blog} likeBlog={likeBlog} removeBlog={removeBlog}/>
       )}
     </div>
   )
 }
 
-export default App;
+export default App
